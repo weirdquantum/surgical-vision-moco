@@ -1,0 +1,18 @@
+# macOS
+.DS_Store
+
+# Datasets (course-provided, not redistributed)
+Assignment 2/
+
+# Original submission files (named with student ID) and report build workspace
+report/
+[[]BN5211[]]_*.ipynb
+
+# Training outputs
+weights/
+*.pth
+*.npz
+
+# Python / Jupyter
+__pycache__/
+.ipynb_checkpoints/
