@@ -1,0 +1,2 @@
+# Main model: ImageNet ConvNeXt-Tiny, fine-tuned end to end.
+_base_: base.yaml

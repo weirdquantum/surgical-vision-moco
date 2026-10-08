@@ -1,0 +1,23 @@
+# Reproduction of the original Task 3 setup, including the frozen key-BN bug.
+_base_: moco_base.yaml
+data:
+  preload_size: [175, 300]
+moco:
+  backbone: convnet
+  mlp_hidden: null                 # single 256 -> 128 linear projection
+  queue_size: 160
+  temperature: 0.07
+  key_bn: frozen_eval
+  bn_splits: 1
+  symmetric: false
+augment:
+  policy: legacy_task3
+  image_size: [175, 300]
+pretrain:
+  epochs: 200
+  batch_size: 8
+  optimizer: adam
+  lr: 1.0e-3
+  weight_decay: 0.0
+  scheduler: constant
+  warmup_epochs: 0

@@ -1,0 +1,4 @@
+# C5: torchvision ResNet-18, ImageNet init, Adam, batch 16
+_base_: legacy_base.yaml
+model: {backbone: resnet18, pretrained: true}
+train: {optimizer: adam, batch_size: 16}

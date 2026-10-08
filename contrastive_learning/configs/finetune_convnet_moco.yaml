@@ -1,0 +1,4 @@
+_base_: ../../instrument_classification/configs/convnet_scratch.yaml
+output_dir: runs/contrastive_learning/finetune_convnet_moco
+model:
+  init_checkpoint: runs/contrastive_learning/moco_convnet/seed0/encoder_best.pt

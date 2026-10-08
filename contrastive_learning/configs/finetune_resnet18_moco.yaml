@@ -1,0 +1,4 @@
+_base_: finetune_resnet18_scratch.yaml
+output_dir: runs/contrastive_learning/finetune_resnet18_moco
+model:
+  init_checkpoint: runs/contrastive_learning/moco_resnet18/seed0/encoder_best.pt

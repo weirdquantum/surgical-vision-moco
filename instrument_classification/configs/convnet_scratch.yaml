@@ -1,0 +1,12 @@
+# Assignment CNN with global average pooling, trained from scratch.
+_base_: base.yaml
+model:
+  backbone: convnet
+  pretrained: false
+  dropout: 0.3
+  drop_path: 0.0
+train:
+  epochs: 150
+  lr: 3.0e-3
+  backbone_lr_mult: 1.0
+  warmup_epochs: 5

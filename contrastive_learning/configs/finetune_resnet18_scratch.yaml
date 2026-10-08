@@ -1,0 +1,13 @@
+# Control for the ResNet-18 (from scratch) pair.
+_base_: ../../instrument_classification/configs/base.yaml
+output_dir: runs/contrastive_learning/finetune_resnet18_scratch
+model:
+  backbone: resnet18
+  pretrained: false
+  dropout: 0.3
+  drop_path: 0.0
+train:
+  epochs: 150
+  lr: 2.0e-3
+  backbone_lr_mult: 1.0
+  warmup_epochs: 5

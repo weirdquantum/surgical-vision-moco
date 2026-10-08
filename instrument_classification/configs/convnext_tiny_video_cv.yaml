@@ -1,0 +1,5 @@
+# Same model evaluated with leakage-free 5-fold cross-validation over videos.
+_base_: base.yaml
+seeds: [0]          # 5 folds already give a spread
+data:
+  split: video_cv

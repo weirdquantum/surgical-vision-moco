@@ -1,0 +1,2 @@
+# Main model: ConvNeXt-Tiny frame encoder + cross-fitted 3-stage MS-TCN.
+_base_: base.yaml

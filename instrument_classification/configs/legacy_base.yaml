@@ -1,0 +1,33 @@
+# Faithful reproduction of the original assignment protocol (C0-C5),
+# now seeded and repeated over several seeds.
+_base_: base.yaml
+seeds: [0, 1, 2]
+data:
+  preload_size: [175, 300]
+model:
+  backbone: convnet_legacy
+  pretrained: false
+  dropout: 0.0
+  drop_path: 0.0
+  zero_init_residual: false
+augment:
+  policy: legacy_task1     # resize 175x300, h/v flip, rotation +-90
+  image_size: [175, 300]
+train:
+  epochs: 200
+  batch_size: 8
+  drop_last: false
+  optimizer: sgd
+  momentum: 0.0
+  lr: 1.0e-3
+  backbone_lr_mult: 1.0
+  weight_decay: 0.0
+  scheduler: constant
+  warmup_epochs: 0
+  label_smoothing: 0.0
+  grad_clip: null
+  ema_decay: null
+  amp: false
+  selection: {metric: accuracy, mode: max}
+eval:
+  tta_hflip: false

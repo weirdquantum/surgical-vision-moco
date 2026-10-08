@@ -1,0 +1,30 @@
+# Faithful reproduction of the original Task 2 protocol, repeated over seeds.
+_base_: base.yaml
+model:
+  backbone: resnet18
+  pretrained: true
+  dropout: 0.0
+  drop_path: 0.0
+augment:
+  policy: legacy_task2
+  image_size: [256, 512]
+train:
+  epochs: 20
+  batch_size: 16
+  drop_last: false
+  optimizer: adam
+  lr: 5.0e-4
+  backbone_lr_mult: 1.0
+  weight_decay: 0.0
+  scheduler: step
+  step_size: 8
+  gamma: 0.5
+  warmup_epochs: 0
+  label_smoothing: 0.0
+  class_weights: none
+  grad_clip: null
+  ema_decay: null
+  amp: false
+  selection: {metric: macro_f1_all, mode: max}
+temporal:
+  enabled: false

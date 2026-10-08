@@ -1,0 +1,57 @@
+# 子项目 3：MoCo 对比学习与迁移
+
+用 420 张无标签器械图像（`dataset-full/`）做 MoCo 自监督预训练，再迁移到子项目 1 的 7 类器械分类。
+
+## 相比原作业的修改
+
+### Bug
+
+**Key 编码器的 BatchNorm 统计量从未更新（主要 bug）。** 原实现把 `encoder_k` 设为 eval 模式，但动量更新只更新了*参数*，没有更新 BN 的 running mean/var 缓冲区。因此 key 编码器在整个训练过程中都用初始统计量（均值 0、方差 1）做归一化，相当于在未归一化的激活上计算 key，与 query 的分布严重不一致。这很可能是原来 InfoNCE 损失在 3.3–4.5 之间波动、始终不下降的主要原因。
+
+修复方式：key 编码器在 train 模式下用批统计量，并按 MoCo 原论文的 **Shuffle BN** 打乱 key 的 batch 顺序。单卡环境下用 `SplitBatchNorm` 把 batch 拆成 4 个子批分别计算统计量，模拟多卡效果，使 query 和它的正样本 key 不共享 BN 统计量，防止模型利用批内信息“作弊”。原行为保留为 `key_bn: frozen_eval`，只用于复现。单元测试会验证 key BN 的统计量确实在更新。
+
+### 其他问题与改进（MoCo v2 配方）
+
+| 项目 | 原实现 | 现在 | 原因 |
+|---|---|---|---|
+| 投影头 | 单层 256→128 | 2 层 MLP | MoCo v2 中带来的提升最大 |
+| 温度 τ | 0.07 | 0.2 | MoCo v2 推荐值 |
+| 增强 | 翻转、±15° 旋转、弱颜色扰动 | RandomResizedCrop(0.2–1)、强颜色扰动（p=0.8）、随机灰度、高斯模糊 | 对比学习的效果高度依赖裁剪和颜色增强 |
+| batch / 队列 | 8 / 160 | 64 / 256 | 负样本更多；队列小于数据集（420），避免同一图像的旧 key 作为负样本 |
+| 损失 | 单向 | 对称（两个视图互为 query/key） | 小数据下每张图的利用率翻倍 |
+| 优化 | Adam 1e-3，恒定学习率，200 epoch | SGD 0.06，cosine，800 epoch | 标准 MoCo 设置；数据少，所以需要更多 epoch |
+| 主干 | ConvNet | ConvNet / ResNet-18 / **ImageNet ResNet-18 + MoCo 继续预训练** | 领域自适应预训练通常优于从零开始 |
+| 训练监控 | 只看损失 | 每 20 个 epoch 计算一次 kNN 准确率（labelled train→val），保存最佳 encoder | 损失下降不代表表征有用 |
+
+### 评估问题
+
+- **缺少对照实验**：原报告无法判断对比预训练是否有帮助，因为没有在相同微调设置下训练随机初始化的模型。现在每组微调配置只有初始化不同（scratch vs MoCo，ImageNet vs ImageNet+MoCo），其他超参数完全一致，并跑 5 个种子。
+- **冻结表征评估**：新增 `probe.py`，对冻结的主干特征做加权 kNN（k=20）和线性探测（逻辑回归，正则系数 C 在验证集上选），并与随机初始化和 ImageNet 特征比较。
+
+## 配置
+
+| 预训练 | 微调（成对比较） |
+|---|---|
+| `legacy_moco_convnet.yaml`（原设置，含 BN bug） | `finetune_convnet_legacy_moco.yaml` |
+| `moco_convnet.yaml` | `finetune_convnet_moco.yaml` vs `finetune_convnet_scratch.yaml` |
+| `moco_resnet18.yaml` | `finetune_resnet18_moco.yaml` vs `finetune_resnet18_scratch.yaml` |
+| `moco_resnet18_imagenet.yaml` | `finetune_resnet18_imagenet_moco.yaml` vs `finetune_resnet18_imagenet.yaml` |
+
+## 运行
+
+```bash
+python -m contrastive_learning.pretrain --config contrastive_learning/configs/moco_resnet18_imagenet.yaml
+python -m instrument_classification.train --config contrastive_learning/configs/finetune_resnet18_imagenet_moco.yaml
+python -m contrastive_learning.probe --encoders imagenet:resnet18 \
+    runs/contrastive_learning/moco_resnet18_imagenet/seed0/encoder_best.pt
+```
+
+微调使用子项目 1 的训练代码；预训练权重通过 `model.init_checkpoint` 加载到主干。
+
+## 结果
+
+| 设置 | Test Acc |
+|---|---|
+| 原作业：ConvNet + MoCo 微调（单次运行） | 74.4% |
+| 原作业：冻结特征 1-NN（val） | 66.7% |
+| 改进后 | 待重新训练 |

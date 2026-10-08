@@ -1,0 +1,3 @@
+# C1: custom ResNet-18, SGD, batch 8
+_base_: legacy_base.yaml
+model: {backbone: resnet18_custom}

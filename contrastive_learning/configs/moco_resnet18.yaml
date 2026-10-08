@@ -1,0 +1,2 @@
+# ResNet-18 from random initialisation.
+_base_: moco_base.yaml

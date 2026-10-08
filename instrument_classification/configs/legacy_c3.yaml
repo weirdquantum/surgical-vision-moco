@@ -1,0 +1,4 @@
+# C3: custom ResNet-18, Adam, batch 16
+_base_: legacy_base.yaml
+model: {backbone: resnet18_custom}
+train: {optimizer: adam, batch_size: 16}

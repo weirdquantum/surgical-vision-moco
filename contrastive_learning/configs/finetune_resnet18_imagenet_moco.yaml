@@ -1,0 +1,6 @@
+# ImageNet weights + MoCo domain-adaptive pretraining.
+_base_: ../../instrument_classification/configs/resnet18_imagenet.yaml
+output_dir: runs/contrastive_learning/finetune_resnet18_imagenet_moco
+model:
+  pretrained: false   # weights come from the checkpoint below
+  init_checkpoint: runs/contrastive_learning/moco_resnet18_imagenet/seed0/encoder_best.pt

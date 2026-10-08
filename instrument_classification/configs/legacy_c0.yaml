@@ -1,0 +1,2 @@
+# C0: baseline CNN (flatten head), SGD, batch 8
+_base_: legacy_base.yaml

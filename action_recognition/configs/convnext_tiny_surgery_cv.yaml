@@ -1,0 +1,8 @@
+# Leakage-free estimate: 4-fold cross-validation over whole surgeries.
+# Frame model + smoothing only, to keep the cost at 4 frame-model trainings.
+_base_: base.yaml
+seeds: [0]
+data:
+  split: surgery_cv
+temporal:
+  enabled: false

@@ -1,0 +1,61 @@
+# Improved protocol: frame model + smoothing + cross-fitted MS-TCN.
+data:
+  root: data
+  frames_dir: RARP_1FPS_288x512   # created by `python -m action_recognition.prepare`
+  original_dir: RARP_1FPS
+  split: official                 # official | surgery_cv (whole surgeries held out)
+  n_folds: 4
+  split_seed: 0
+  num_workers: 4
+seeds: [0, 1, 2]
+model:
+  backbone: convnext_tiny
+  pretrained: true
+  dropout: 0.3
+  drop_path: 0.1
+augment:
+  policy: modern
+  image_size: [256, 448]          # keeps the 16:9 aspect ratio of the video
+  crop_scale: [0.6, 1.0]
+  hflip: 0.0                      # left/right hand roles matter for suturing
+  rotation: 5
+  color_jitter: [0.3, 0.3, 0.2, 0.03]
+  color_jitter_p: 0.8
+  random_erasing: 0.25
+train:
+  epochs: 25
+  batch_size: 32
+  drop_last: true
+  optimizer: adamw
+  lr: 1.0e-3
+  backbone_lr_mult: 0.1
+  weight_decay: 0.05
+  scheduler: cosine
+  warmup_epochs: 1
+  min_lr_ratio: 0.01
+  label_smoothing: 0.1
+  class_weights: sqrt_inverse     # 521 vs 43 frames between largest / smallest class
+  grad_clip: 1.0
+  ema_decay: 0.995
+  amp: true
+  selection: {metric: macro_f1, mode: max}
+eval:
+  batch_size: 64
+smoothing:
+  windows: [1, 3, 5, 7, 9, 11, 15, 21]
+temporal:
+  enabled: true
+  input: logits                   # logits (with cross-fitting) | features
+  crossfit_folds: 4
+  crossfit_epochs: 15              # shorter runs for the out-of-fold train predictions
+  num_stages: 3
+  num_layers: 8                   # receptive field ~511 frames > longest video
+  channels: 64
+  dropout: 0.5
+  lr: 5.0e-4
+  weight_decay: 1.0e-4
+  epochs: 150
+  smooth_weight: 0.15
+  input_noise: 0.1
+  input_dropout: 0.1
+  class_weights: sqrt_inverse

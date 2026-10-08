@@ -1,0 +1,4 @@
+# C4: torchvision ResNet-18, random init, Adam, batch 16
+_base_: legacy_base.yaml
+model: {backbone: resnet18}
+train: {optimizer: adam, batch_size: 16}

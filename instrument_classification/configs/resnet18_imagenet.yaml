@@ -1,0 +1,5 @@
+# Original best configuration (C5 backbone) under the improved protocol.
+_base_: base.yaml
+model:
+  backbone: resnet18
+  drop_path: 0.0

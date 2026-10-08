@@ -1,0 +1,5 @@
+# The assignment's 5-block CNN (GAP version) with the improved MoCo recipe.
+_base_: moco_base.yaml
+moco:
+  backbone: convnet
+  mlp_hidden: 256

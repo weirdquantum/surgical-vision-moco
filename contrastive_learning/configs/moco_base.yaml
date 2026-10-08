@@ -1,0 +1,44 @@
+# MoCo v2-style pretraining on the 420 unlabelled images (dataset-full).
+data:
+  root: data
+  unlabelled_dir: dataset-full
+  labelled_dir: Dataset            # only for the kNN monitor (train -> val)
+  preload_size: [256, 448]
+  num_workers: 2
+seeds: [0]
+moco:
+  backbone: resnet18
+  pretrained: false
+  dim: 128
+  mlp_hidden: 512                  # MoCo v2 MLP projection head
+  queue_size: 256                  # < dataset size: no stale copies of the same image
+  momentum: 0.99
+  temperature: 0.2
+  key_bn: shuffle                  # fixed key-encoder BatchNorm (see moco.py)
+  bn_splits: 4                     # single-device Shuffle-BN simulation
+  symmetric: true
+augment:
+  policy: modern
+  image_size: [160, 288]
+  crop_scale: [0.2, 1.0]
+  ratio_jitter: 0.75
+  hflip: 0.5
+  rotation: 0
+  color_jitter: [0.4, 0.4, 0.4, 0.1]
+  color_jitter_p: 0.8
+  grayscale_p: 0.2
+  blur_p: 0.5
+pretrain:
+  epochs: 800
+  batch_size: 64
+  optimizer: sgd
+  momentum: 0.9
+  lr: 0.06
+  weight_decay: 5.0e-4
+  scheduler: cosine
+  warmup_epochs: 10
+  min_lr_ratio: 0.0
+  eval_every: 20
+monitor:
+  image_size: [224, 384]
+  k: 20

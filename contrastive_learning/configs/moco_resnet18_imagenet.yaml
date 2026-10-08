@@ -1,0 +1,7 @@
+# Domain-adaptive pretraining: start from ImageNet weights, continue with MoCo.
+_base_: moco_base.yaml
+moco:
+  pretrained: true
+pretrain:
+  epochs: 300
+  lr: 0.02

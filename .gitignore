@@ -1,18 +1,23 @@
 # macOS
 .DS_Store
 
-# Datasets (course-provided, not redistributed)
+# Data (course-provided, not redistributed) and local symlink
 Assignment 2/
+data
+data/
 
 # Original submission files (named with student ID) and report build workspace
 report/
 [[]BN5211[]]_*.ipynb
 
-# Training outputs
-weights/
+# Training outputs and environments
+runs/
+*.pt
 *.pth
 *.npz
+.venv/
 
 # Python / Jupyter
 __pycache__/
+.pytest_cache/
 .ipynb_checkpoints/

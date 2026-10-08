@@ -1,0 +1,3 @@
+# Control for the ImageNet pair: ImageNet weights only.
+_base_: ../../instrument_classification/configs/resnet18_imagenet.yaml
+output_dir: runs/contrastive_learning/finetune_resnet18_imagenet
