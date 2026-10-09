@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Remaining experiments after the core + extra runs, in one go.
-#   bash scripts/run_final.sh          # required (~3.5 h on an A100)
-#   bash scripts/run_final.sh full     # + optional ablations (~3 h more)
+#   bash scripts/run_final.sh          # required: steps 1-3 (~1 h on an A100)
+#   bash scripts/run_final.sh label    # + label-efficiency study (~2 h more)
+#   bash scripts/run_final.sh full     # + label efficiency + optional ablations (~5 h more)
 # Finished runs are skipped, so the script can be re-run after an interruption.
 set -euo pipefail
 cd "$(dirname "$0")/.."
@@ -25,6 +26,7 @@ p2 "$P2/convnext_tiny_mstcn_no_crossfit.yaml"
 echo "=== [3/5] Project 3: fair 300-epoch comparison scratch vs MoCo ==="
 p1 "$P3/finetune_convnet_moco_300ep.yaml"
 
+if [[ $TIER == label || $TIER == full ]]; then
 echo "=== [4/5] Project 3: label efficiency (10% / 25% / 50% of labelled images) ==="
 for f in 0.1 0.25 0.5; do
   p1 "$P1/convnet_scratch_300ep.yaml"            --set data.train_fraction=$f --output-dir "$R/label_efficiency/convnet_scratch/f$f"
@@ -32,6 +34,7 @@ for f in 0.1 0.25 0.5; do
   p1 "$P3/finetune_resnet18_imagenet.yaml"       --set data.train_fraction=$f --output-dir "$R/label_efficiency/resnet18_imagenet/f$f"
   p1 "$P3/finetune_resnet18_imagenet_moco.yaml"  --set data.train_fraction=$f --output-dir "$R/label_efficiency/resnet18_imagenet_moco/f$f"
 done
+fi
 
 if [[ $TIER == full ]]; then
   echo "=== [optional] extra backbones and MoCo for a from-scratch ResNet-18 ==="
