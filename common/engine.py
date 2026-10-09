@@ -277,6 +277,8 @@ def fit(model, train_loader, val_loader, cfg, device, out_dir, num_classes,
             seen += batch
 
         eval_model = ema.module if ema else model
+        if epoch % cfg.get('eval_every', 1) and epoch != epochs:
+            continue
         val_metrics, _ = evaluate(eval_model, val_loader, device, num_classes,
                                   class_names, max_steps=max_steps)
         history['epoch'].append(epoch)

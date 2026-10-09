@@ -24,6 +24,8 @@
 ├── contrastive_learning/         # 子项目 3：moco.py / pretrain.py / probe.py / configs/
 ├── tests/                        # pytest 单元测试（不需要数据集）
 ├── scripts/run_all.sh            # 按依赖顺序运行全部实验（core / full 两档）
+├── scripts/run_final.sh          # 补充实验：消融、交叉验证、标签效率
+├── scripts/collect_results.py    # 汇总所有结果并做同种子配对比较
 ├── colab/run_on_colab.ipynb      # 在 Colab GPU 上一键运行
 └── legacy/                       # 原课程作业 notebook（已执行，含原始结果）
 ```
@@ -33,7 +35,7 @@
 ```bash
 pip install -r requirements.txt
 ln -s /path/to/course/data data      # 包含 Dataset/、dataset-full/、RARP_1FPS/
-pytest -q tests                      # 18 个单元测试
+pytest -q tests                      # 20 个单元测试
 python -m action_recognition.prepare --data-root data
 bash scripts/run_all.sh core         # 或分别运行各子项目的 train / pretrain
 ```

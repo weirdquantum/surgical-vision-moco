@@ -1,0 +1,6 @@
+# Ablation: MS-TCN trained on in-sample frame predictions (no cross-fitting).
+# Reuses the frame model of convnext_tiny_mstcn, so only the temporal stage differs.
+_base_: base.yaml
+reuse_frame_outputs_from: runs/action_recognition/convnext_tiny_mstcn
+temporal:
+  crossfit_folds: 0

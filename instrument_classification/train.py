@@ -5,6 +5,7 @@ Example:
         --config instrument_classification/configs/convnext_tiny.yaml
 """
 
+import math
 from pathlib import Path
 
 import numpy as np
@@ -19,11 +20,23 @@ from common.plotting import plot_confusion, plot_history
 from common.utils import (Logger, base_arg_parser, describe_environment, get_device,
                           load_json, resolve_config, save_json, save_yaml, set_seed)
 
-from .data import CLASS_NAMES, NUM_CLASSES, InstrumentDataset, build_splits
+from .data import CLASS_NAMES, NUM_CLASSES, InstrumentDataset, build_splits, \
+    subsample_stratified
 
 
 def scalar_metrics(metrics):
     return {k: metrics[k] for k in SCALAR_KEYS if k in metrics}
+
+
+def scale_schedule(train_cfg, fraction):
+    """Keep the number of optimisation steps (and validations) roughly constant
+    when training on a fraction of the labelled images."""
+    if fraction >= 1.0 or not train_cfg.get('scale_epochs_with_fraction', True):
+        return train_cfg
+    return {**train_cfg,
+            'epochs': math.ceil(train_cfg['epochs'] / fraction),
+            'warmup_epochs': train_cfg.get('warmup_epochs', 0) / fraction,
+            'eval_every': train_cfg.get('eval_every', 1) * math.ceil(1 / fraction)}
 
 
 def run_single(cfg, seed, fold, out_dir, device, log):
@@ -35,6 +48,12 @@ def run_single(cfg, seed, fold, out_dir, device, log):
 
     data_cfg, train_cfg = cfg['data'], cfg['train']
     splits = build_splits(data_cfg, seed=seed, fold=fold)
+    fraction = data_cfg.get('train_fraction', 1.0)
+    if fraction < 1.0:
+        splits['train'] = subsample_stratified(splits['train'], fraction, seed)
+        train_cfg = scale_schedule(train_cfg, fraction)
+        log(f'label fraction {fraction}: {len(splits["train"])} training images, '
+            f'{train_cfg["epochs"]} epochs, validation every {train_cfg["eval_every"]}')
     preload = data_cfg.get('preload_size')
     train_set = InstrumentDataset(splits['train'], build_transform(cfg['augment'], True), preload)
     eval_tf = build_transform(cfg['augment'], False)
@@ -45,7 +64,9 @@ def run_single(cfg, seed, fold, out_dir, device, log):
 
     workers = data_cfg.get('num_workers', 2)
     train_loader = make_loader(train_set, train_cfg['batch_size'], True, workers, seed,
-                               drop_last=train_cfg.get('drop_last', False), device=device)
+                               drop_last=(train_cfg.get('drop_last', False)
+                                          and len(train_set) >= train_cfg['batch_size']),
+                               device=device)
     val_loader = make_loader(val_set, cfg['eval'].get('batch_size', 32), False, workers,
                              seed, device=device)
     test_loader = make_loader(test_set, cfg['eval'].get('batch_size', 32), False, workers,

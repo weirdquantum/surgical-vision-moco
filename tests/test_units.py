@@ -154,3 +154,22 @@ def test_moco_queue_wraps_and_key_bn_updates():
     # The original bug: key BN statistics never moved. Now they must.
     assert not torch.allclose(model.encoder_k.backbone.features[0][1].running_mean, before)
     assert 0.0 <= float(accuracy) <= 1.0
+
+
+# --- label efficiency -------------------------------------------------------
+
+def test_subsample_stratified_keeps_every_class_and_is_seeded():
+    from instrument_classification.data import Record, subsample_stratified
+    records = [Record(f'/x/v01_{i:06d}_{c}.jpg', 'v01', i, label)
+               for label, c in enumerate(['Bi', 'Cl', 'Gr']) for i in range(20)]
+    subset = subsample_stratified(records, 0.1, seed=3)
+    assert sorted({r.label for r in subset}) == [0, 1, 2] and len(subset) == 6
+    assert subset == subsample_stratified(records, 0.1, seed=3)
+    assert subset != subsample_stratified(records, 0.1, seed=4)
+
+
+def test_scale_schedule_keeps_steps_constant():
+    from instrument_classification.train import scale_schedule
+    cfg = scale_schedule({'epochs': 60, 'warmup_epochs': 3}, 0.25)
+    assert cfg['epochs'] == 240 and cfg['warmup_epochs'] == 12 and cfg['eval_every'] == 4
+    assert scale_schedule({'epochs': 60}, 1.0) == {'epochs': 60}

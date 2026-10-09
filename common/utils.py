@@ -112,6 +112,8 @@ def apply_smoke(cfg):
             cfg[section]['warmup_epochs'] = 0
             if 'eval_every' in cfg[section]:
                 cfg[section]['eval_every'] = 1
+    if 'crossfit_epochs' in cfg.get('temporal', {}):
+        cfg['temporal']['crossfit_epochs'] = min(cfg['temporal']['crossfit_epochs'], 2)
     cfg['data']['num_workers'] = 0
 
 

@@ -1,0 +1,7 @@
+# Full method (frame model + cross-fitted MS-TCN) under 4-fold surgery-level CV.
+# Reuses the frame models of convnext_tiny_surgery_cv (same folds, same seed).
+_base_: base.yaml
+seeds: [0]
+data:
+  split: surgery_cv
+reuse_frame_outputs_from: runs/action_recognition/convnext_tiny_surgery_cv

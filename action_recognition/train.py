@@ -13,6 +13,7 @@ Finished stages are skipped on re-run, so an interrupted run can resume.
 """
 
 import random
+import shutil
 from pathlib import Path
 
 import numpy as np
@@ -114,12 +115,27 @@ def crossfit_folds(train_seqs, n_folds, seed):
     return [surgeries[i::n_folds] for i in range(n_folds)]
 
 
-def run_single(cfg, seed, fold, out_dir, device, log):
+def reuse_frame_outputs(source_dir, out_dir, log):
+    """Copy another run's exported frame outputs so that only the later stages
+    differ (e.g. the cross-fitting ablation uses the identical frame model)."""
+    source_dir = Path(source_dir)
+    if not (source_dir / 'outputs').is_dir():
+        raise FileNotFoundError(f'No frame outputs to reuse in {source_dir}')
+    if not (out_dir / 'outputs').exists():
+        shutil.copytree(source_dir / 'outputs', out_dir / 'outputs')
+    (out_dir / 'frame').mkdir(parents=True, exist_ok=True)
+    shutil.copy2(source_dir / 'frame' / 'best_info.json', out_dir / 'frame' / 'best_info.json')
+    log(f'reusing frame-model outputs from {source_dir}')
+
+
+def run_single(cfg, seed, fold, out_dir, device, log, reuse_dir=None):
     out_dir = Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
     if cfg.get('resume', True) and (out_dir / 'metrics.json').exists():
         log(f'skip {out_dir} (metrics.json exists)')
         return load_json(out_dir / 'metrics.json')
+    if reuse_dir is not None:
+        reuse_frame_outputs(reuse_dir, out_dir, log)
     splits = build_sequences(cfg['data'], fold)
     if cfg.get('smoke'):
         splits = {k: v[:2] for k, v in splits.items()}
@@ -214,8 +230,10 @@ def run_experiment(cfg):
     results = []
     for seed in cfg['seeds']:
         for fold in folds:
-            run_dir = out_root / f'seed{seed}' / (f'fold{fold}' if len(folds) > 1 else '')
-            results.append(run_single(cfg, seed, fold, run_dir, device, log))
+            relative = Path(f'seed{seed}') / (f'fold{fold}' if len(folds) > 1 else '')
+            reuse = cfg.get('reuse_frame_outputs_from')
+            results.append(run_single(cfg, seed, fold, out_root / relative, device, log,
+                                      reuse_dir=Path(reuse) / relative if reuse else None))
 
     summary, rows = {'name': cfg['name'], 'n_runs': len(results)}, []
     for stage in ('frame', 'smoothed', 'temporal'):

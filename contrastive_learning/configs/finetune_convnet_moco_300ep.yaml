@@ -1,0 +1,6 @@
+# MoCo-initialised ConvNet with the 300-epoch schedule; its control is
+# instrument_classification/configs/convnet_scratch_300ep.yaml (same seeds).
+_base_: finetune_convnet_moco.yaml
+output_dir: runs/contrastive_learning/finetune_convnet_moco_300ep
+train:
+  epochs: 300
