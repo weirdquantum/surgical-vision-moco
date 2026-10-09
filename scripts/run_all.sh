@@ -31,7 +31,7 @@ $PY -m instrument_classification.ensemble "$R/instrument_classification/convnext
     "$R/instrument_classification/efficientnet_v2_s" --output "$R/instrument_classification/ensemble"
 p1 convnext_tiny_video_cv
 if [[ $TIER == full ]]; then
-  for c in legacy_c1 legacy_c2 legacy_c3 legacy_c4 resnet50 resnet18_custom_scratch; do p1 $c; done
+  for c in legacy_c1 legacy_c2 legacy_c3 legacy_c4 resnet50 resnet18_custom_scratch convnet_scratch_300ep; do p1 $c; done
 fi
 fi
 

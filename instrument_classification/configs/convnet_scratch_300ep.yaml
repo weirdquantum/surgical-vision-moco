@@ -1,0 +1,4 @@
+# convnet_scratch with a longer schedule: the 150-epoch run peaked at its final epoch.
+_base_: convnet_scratch.yaml
+train:
+  epochs: 300
