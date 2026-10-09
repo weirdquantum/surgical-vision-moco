@@ -20,7 +20,7 @@
 | batch / 队列 | 8 / 160 | 64 / 256 | 负样本更多；队列小于数据集（420），避免同一图像的旧 key 作为负样本 |
 | 损失 | 单向 | 对称（两个视图互为 query/key） | 小数据下每张图的利用率翻倍 |
 | 优化 | Adam 1e-3，恒定学习率，200 epoch | SGD 0.06，cosine，800 epoch | 标准 MoCo 设置；数据少，所以需要更多 epoch |
-| 主干 | ConvNet | ConvNet / ResNet-18 / **ImageNet ResNet-18 + MoCo 继续预训练** | 领域自适应预训练通常优于从零开始 |
+| 主干 | ConvNet | ConvNet / **ImageNet ResNet-18 + MoCo 继续预训练** | 领域自适应预训练通常优于从零开始 |
 | 训练监控 | 只看损失 | 每 20 个 epoch 计算一次 kNN 准确率（labelled train→val），保存最佳 encoder | 损失下降不代表表征有用 |
 
 ### 评估问题
@@ -33,8 +33,7 @@
 | 预训练 | 微调（成对比较） |
 |---|---|
 | `legacy_moco_convnet.yaml`（原设置，含 BN bug） | `finetune_convnet_legacy_moco.yaml` |
-| `moco_convnet.yaml` | `finetune_convnet_moco.yaml` vs `finetune_convnet_scratch.yaml` |
-| `moco_resnet18.yaml` | `finetune_resnet18_moco.yaml` vs `finetune_resnet18_scratch.yaml` |
+| `moco_convnet.yaml` | `finetune_convnet_moco.yaml` vs `finetune_convnet_scratch.yaml`（150 epoch）；`finetune_convnet_moco_300ep.yaml` vs 子项目 1 的 `convnet_scratch_300ep.yaml` |
 | `moco_resnet18_imagenet.yaml` | `finetune_resnet18_imagenet_moco.yaml` vs `finetune_resnet18_imagenet.yaml` |
 
 ## 运行
@@ -72,6 +71,8 @@ python -m contrastive_learning.probe --encoders imagenet:resnet18 \
 | ImageNet ResNet-18 | 58.9% | 83.3% |
 | **ImageNet + MoCo ResNet-18** | **80.0%** | **86.7%** |
 
+“随机初始化 ConvNet”一行来自单次随机初始化，换一个初始化会有几个百分点的波动（`probe.py` 现已固定种子）；这不影响“旧版 MoCo 与随机初始化无异、修复后明显更好”的结论。
+
 ### 微调成对对照（5 个种子，均值 ± 标准差）
 
 | 初始化 | Test Acc | Test macro-F1 |
@@ -95,5 +96,5 @@ python -m contrastive_learning.probe --encoders imagenet:resnet18 \
   - MoCo 初始化在 150 epoch 时已经达到 85.8%，延长到 300 epoch 几乎不变（86.0%），而随机初始化需要 300 epoch。
   - 种子间标准差为 0.6–0.9，随机初始化为 2.2–4.2。
 - **领域自适应预训练明显改善特征空间：** ImageNet 特征的 kNN 准确率从 58.9% 提升到 80.0%。但完整微调后，与纯 ImageNet 初始化持平（+0.4，p = 0.18）。
-- **整体判断：** 只有 420 张无标签图像时，MoCo 能学到明显更好的冻结特征（kNN、线性探测），但在有 178 张标注图可以完整微调的情况下，最终准确率没有显著提升。标签更少时它是否有帮助，可以用 `bash scripts/run_final.sh label` 运行标签效率实验来检验（未运行）。
+- **整体判断：** 只有 420 张无标签图像时，MoCo 能学到明显更好的冻结特征（kNN、线性探测），但在有 178 张标注图可以完整微调的情况下，最终准确率没有显著提升。标签更少时它是否有帮助，本项目没有测试。
 - **局限：** 测试集小（1 张图 ≈ 1.1 个百分点）。`encoder_best.pt` 按验证集 kNN 挑选，所以验证集指标偏乐观，表中只报告测试集。无标签预训练集包含 178 张训练图（未使用标签），不含验证集和测试集。

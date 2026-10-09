@@ -2,7 +2,7 @@
 
 Per seed (and fold):
   1. fine-tune a frame classifier, select the epoch with best val macro-F1;
-  2. export per-frame logits/features for every sequence;
+  2. export per-frame logits for every sequence;
   3. tune a moving-average window on val and apply it to test;
   4. (optional) cross-fit frame models on train surgeries so the temporal
      model is trained on realistic, out-of-sample train predictions;
@@ -53,7 +53,7 @@ def scalars(metrics):
 # ----------------------------------------------------------------------------
 
 def train_frame_model(cfg, train_seqs, val_seqs, out_dir, device, seed, log):
-    set_seed(seed, cfg.get('deterministic', False))
+    set_seed(seed)
     data_cfg, train_cfg = cfg['data'], cfg['train']
     train_set = FrameDataset(train_seqs, build_transform(cfg['augment'], True))
     val_set = FrameDataset(val_seqs, build_transform(cfg['augment'], False))
@@ -74,18 +74,17 @@ def train_frame_model(cfg, train_seqs, val_seqs, out_dir, device, seed, log):
 
 
 def export_outputs(model, sequences, cfg, device, out_dir, seed):
-    """Save per-sequence logits (and features) to out_dir/<name>.npz."""
+    """Save per-sequence logits to out_dir/<name>.npz."""
     out_dir.mkdir(parents=True, exist_ok=True)
     dataset = FrameDataset(sequences, build_transform(cfg['augment'], False))
     loader = make_loader(dataset, cfg['eval'].get('batch_size', 64), False,
                          cfg['data'].get('num_workers', 4), seed, device=device)
-    outputs = predict(model, loader, device, return_features=True)
+    outputs = predict(model, loader, device)
     offset = 0
     for sequence in sequences:
         end = offset + len(sequence)
         np.savez_compressed(out_dir / f'{sequence.name}.npz',
                             logits=outputs['logits'][offset:end],
-                            features=outputs['features'][offset:end].astype(np.float16),
                             labels=sequence.labels, frame_ids=sequence.frame_ids)
         offset = end
 
@@ -174,7 +173,7 @@ def run_single(cfg, seed, fold, out_dir, device, log, reuse_dir=None):
     tcfg = cfg.get('temporal', {})
     if tcfg.get('enabled', False):
         train_inputs = outputs['train']
-        if tcfg.get('input') == 'logits' and tcfg.get('crossfit_folds', 0) > 1:
+        if tcfg.get('crossfit_folds', 0) > 1:
             crossfit_dir = out_dir / 'crossfit_outputs' / 'train'
             for k, held_out in enumerate(crossfit_folds(splits['train'], tcfg['crossfit_folds'], seed)):
                 held = [s for s in splits['train'] if s.surgery in held_out]
@@ -191,7 +190,7 @@ def run_single(cfg, seed, fold, out_dir, device, log, reuse_dir=None):
                 export_outputs(model, held, cfg, device, crossfit_dir, seed)
                 del model
             train_inputs = load_outputs(crossfit_dir, splits['train'])
-        elif tcfg.get('input') == 'logits':
+        else:
             log('[warning] temporal model trained on in-sample frame predictions; '
                 'set temporal.crossfit_folds >= 2 for realistic train inputs')
         weight = class_weights(np.concatenate([o['labels'] for o in train_inputs]),
@@ -201,7 +200,7 @@ def run_single(cfg, seed, fold, out_dir, device, log, reuse_dir=None):
             out_dir, log, weight, seed)
         result['temporal'] = {'best_epoch': best_epoch}
         for split in ('val', 'test'):
-            data, _ = prepare_inputs(outputs[split], tcfg['input'], stats)
+            data, _ = prepare_inputs(outputs[split], stats)
             result['temporal'][split] = sequence_metrics(
                 predict_sequences(model, data, device), splits[split])
 

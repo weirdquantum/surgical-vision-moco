@@ -2,4 +2,3 @@
 _base_: base.yaml
 model:
   backbone: resnet18
-  drop_path: 0.0

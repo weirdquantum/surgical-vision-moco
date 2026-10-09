@@ -37,15 +37,6 @@ def set_by_path(cfg, dotted_key, value):
     node[keys[-1]] = value
 
 
-def get_by_path(cfg, dotted_key, default=None):
-    node = cfg
-    for key in dotted_key.split('.'):
-        if not isinstance(node, dict) or key not in node:
-            return default
-        node = node[key]
-    return node
-
-
 def load_config(path, overrides=()):
     """Load a YAML config. ``_base_`` (relative path) enables inheritance.
 
@@ -121,15 +112,12 @@ def apply_smoke(cfg):
 # Reproducibility and devices
 # ----------------------------------------------------------------------------
 
-def set_seed(seed, deterministic=False):
+def set_seed(seed):
     random.seed(seed)
     np.random.seed(seed)
     torch.manual_seed(seed)
     if torch.cuda.is_available():
         torch.cuda.manual_seed_all(seed)
-    if deterministic:
-        torch.backends.cudnn.deterministic = True
-        torch.backends.cudnn.benchmark = False
 
 
 def seed_worker(worker_id):

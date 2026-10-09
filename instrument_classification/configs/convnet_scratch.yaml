@@ -4,7 +4,6 @@ model:
   backbone: convnet
   pretrained: false
   dropout: 0.3
-  drop_path: 0.0
 train:
   epochs: 150
   lr: 3.0e-3

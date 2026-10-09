@@ -4,7 +4,6 @@ File names look like ``v01_007125_Gr.jpg`` = video 01, frame 7125, Grasper.
 """
 
 import os
-import random
 import re
 from dataclasses import dataclass
 from pathlib import Path
@@ -78,21 +77,6 @@ def build_splits(data_cfg, seed=0, fold=0):
             'test': [r for r in records if r.video in test_v],
         }
     raise ValueError(f'Unknown split mode {mode!r}')
-
-
-def subsample_stratified(records, fraction, seed):
-    """Keep ``fraction`` of each class (at least one image), seeded.
-
-    Used for label-efficiency experiments; the subset depends only on the seed,
-    so different initialisations trained with the same seed see the same images.
-    """
-    rng = random.Random(seed)
-    kept = []
-    for label in sorted({r.label for r in records}):
-        members = [r for r in records if r.label == label]
-        k = max(1, round(len(members) * fraction))
-        kept += rng.sample(members, k)
-    return sorted(kept, key=lambda r: r.path)
 
 
 class InstrumentDataset(Dataset):

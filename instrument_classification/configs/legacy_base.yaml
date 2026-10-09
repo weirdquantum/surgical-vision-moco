@@ -8,8 +8,6 @@ model:
   backbone: convnet_legacy
   pretrained: false
   dropout: 0.0
-  drop_path: 0.0
-  zero_init_residual: false
 augment:
   policy: legacy_task1     # resize 175x300, h/v flip, rotation +-90
   image_size: [175, 300]

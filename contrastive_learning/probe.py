@@ -66,8 +66,9 @@ def load_encoder(spec, device):
     """'random:<backbone>', 'imagenet:<backbone>' or a MoCo encoder checkpoint."""
     if ':' in spec and not Path(spec).exists():
         kind, name = spec.split(':', 1)
+        torch.manual_seed(0)  # makes the random-initialisation baseline reproducible
         return build_backbone(name, pretrained=(kind == 'imagenet')).to(device)
-    checkpoint = torch.load(spec, map_location='cpu', weights_only=False)
+    checkpoint = torch.load(spec, map_location='cpu', weights_only=True)
     backbone = build_backbone(checkpoint['backbone_name'])
     backbone.load_state_dict(checkpoint['backbone'])
     return backbone.to(device)

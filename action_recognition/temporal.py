@@ -81,18 +81,14 @@ def temporal_loss(outputs, target, weight, smooth_weight, tau=4.0):
     return loss
 
 
-def prepare_inputs(sequences, input_kind, stats=None):
-    """sequences: list of dicts with 'logits' / 'features' / 'labels'.
+def prepare_inputs(sequences, stats=None):
+    """sequences: list of dicts with per-frame 'logits' and 'labels'.
 
-    Returns list of (x (D, T) float32, y (T,)) and the normalisation stats.
+    Inputs are standardised log-probabilities. Returns a list of
+    (x (C, T) float32, y (T,)) and the normalisation stats.
     """
-    if input_kind == 'logits':
-        arrays = [torch.log_softmax(torch.from_numpy(s['logits']).float(), 1).numpy()
-                  for s in sequences]
-    elif input_kind == 'features':
-        arrays = [s['features'].astype(np.float32) for s in sequences]
-    else:
-        raise ValueError(input_kind)
+    arrays = [torch.log_softmax(torch.from_numpy(s['logits']).float(), 1).numpy()
+              for s in sequences]
     if stats is None:
         stacked = np.concatenate(arrays)
         stats = (stacked.mean(0), stacked.std(0) + 1e-6)
@@ -125,8 +121,8 @@ def train_temporal(train_seqs, val_seqs, cfg, num_classes, class_names, device,
     """Train MS-TCN on train sequences; keep the epoch with best val macro-F1."""
     torch.manual_seed(seed)
     random.seed(seed)
-    train_data, stats = prepare_inputs(train_seqs, cfg['input'])
-    val_data, _ = prepare_inputs(val_seqs, cfg['input'], stats)
+    train_data, stats = prepare_inputs(train_seqs)
+    val_data, _ = prepare_inputs(val_seqs, stats)
     in_dim = train_data[0][0].shape[0]
     model = MSTCN(in_dim, num_classes, cfg.get('num_stages', 3), cfg.get('num_layers', 8),
                   cfg.get('channels', 64), cfg.get('dropout', 0.5)).to(device)

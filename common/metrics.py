@@ -39,14 +39,12 @@ SCALAR_KEYS = ('loss', 'accuracy', 'balanced_accuracy', 'macro_f1',
                'macro_f1_all', 'weighted_f1')
 
 
-def aggregate_runs(results, keys=None):
+def aggregate_runs(results):
     """Mean / std / values of scalar metrics across seeds or folds."""
     if not results:
         return {}
-    keys = keys or [k for k in results[0]
-                    if isinstance(results[0][k], (int, float))]
     summary = {}
-    for key in keys:
+    for key in results[0]:
         values = [float(r[key]) for r in results if key in r]
         if values:
             summary[key] = {

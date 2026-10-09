@@ -1,4 +1,0 @@
-# Ablation: frame model + smoothing only (no temporal network, ~5x cheaper).
-_base_: base.yaml
-temporal:
-  enabled: false

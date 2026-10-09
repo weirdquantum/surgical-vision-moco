@@ -1,9 +1,9 @@
 """Supervised training / evaluation loop shared by the classification projects.
 
-Features: separate backbone/head learning rates, no weight decay on norms and
-biases, warmup + cosine (or constant / step) schedules, label smoothing,
-class-weighted loss, MixUp/CutMix, gradient clipping, AMP on CUDA, EMA weights,
-early stopping and configurable checkpoint selection.
+Separate backbone/head learning rates, no weight decay on norms and biases,
+warmup + cosine (or constant / step) schedules, label smoothing, class-weighted
+loss, gradient clipping, AMP on CUDA, EMA weights and checkpoint selection on a
+validation metric.
 """
 
 import copy
@@ -40,8 +40,6 @@ def build_param_groups(model, lr, weight_decay, backbone_lr_mult=1.0):
                 'weight_decay': 0.0 if no_decay else weight_decay,
             }
         groups[key]['params'].append(param)
-    for group in groups.values():
-        group['initial_lr'] = group['lr']
     return list(groups.values())
 
 
@@ -51,20 +49,18 @@ def build_optimizer(model, cfg):
     groups = build_param_groups(model, lr, cfg.get('weight_decay', 0.0),
                                 cfg.get('backbone_lr_mult', 1.0))
     if name == 'sgd':
-        return torch.optim.SGD(groups, lr=lr, momentum=cfg.get('momentum', 0.0),
-                               nesterov=cfg.get('nesterov', False))
+        return torch.optim.SGD(groups, lr=lr, momentum=cfg.get('momentum', 0.0))
     if name == 'adam':
         return torch.optim.Adam(groups, lr=lr)
     if name == 'adamw':
-        return torch.optim.AdamW(groups, lr=lr, betas=tuple(cfg.get('betas', (0.9, 0.999))))
+        return torch.optim.AdamW(groups, lr=lr)
     raise ValueError(f'Unknown optimizer {name}')
 
 
 def build_scheduler(optimizer, cfg, steps_per_epoch):
     """Per-step LambdaLR: linear warmup then cosine / constant / step decay."""
     kind = cfg.get('scheduler', 'cosine')
-    epochs = cfg['epochs']
-    total = max(1, epochs * steps_per_epoch)
+    total = max(1, cfg['epochs'] * steps_per_epoch)
     warmup = int(cfg.get('warmup_epochs', 0) * steps_per_epoch)
     min_ratio = cfg.get('min_lr_ratio', 0.01)
     step_size = cfg.get('step_size', 10) * steps_per_epoch
@@ -86,14 +82,15 @@ def build_scheduler(optimizer, cfg, steps_per_epoch):
 
 
 def class_weights(labels, num_classes, mode):
-    """'none' | 'inverse' | 'sqrt_inverse'; normalised to mean 1 over seen classes."""
+    """``'sqrt_inverse'`` weights (mean 1 over seen classes) or None."""
     if not mode or mode == 'none':
         return None
+    if mode != 'sqrt_inverse':
+        raise ValueError(f'Unknown class_weights mode {mode!r}')
     counts = np.bincount(np.asarray(labels), minlength=num_classes).astype(float)
     weights = np.ones(num_classes)
     seen = counts > 0
-    power = 1.0 if mode == 'inverse' else 0.5
-    weights[seen] = (counts[seen].sum() / counts[seen]) ** power
+    weights[seen] = (counts[seen].sum() / counts[seen]) ** 0.5
     weights[seen] /= weights[seen].mean()
     return torch.tensor(weights, dtype=torch.float32)
 
@@ -121,31 +118,6 @@ class ModelEma:
                 ema_state[key].copy_(value)
 
 
-def mix_batch(images, labels, num_classes, cfg):
-    """MixUp / CutMix with probability ``mix_prob``; returns soft targets."""
-    targets = F.one_hot(labels, num_classes).float()
-    if np.random.rand() >= cfg.get('mix_prob', 0.0):
-        return images, targets
-    permutation = torch.randperm(images.size(0), device=images.device)
-    use_cutmix = cfg.get('cutmix_alpha', 0) > 0 and (
-        cfg.get('mixup_alpha', 0) <= 0 or np.random.rand() < 0.5)
-    if use_cutmix:
-        lam = np.random.beta(cfg['cutmix_alpha'], cfg['cutmix_alpha'])
-        _, _, h, w = images.shape
-        cut_h, cut_w = int(h * math.sqrt(1 - lam)), int(w * math.sqrt(1 - lam))
-        cy, cx = np.random.randint(h), np.random.randint(w)
-        y1, y2 = np.clip(cy - cut_h // 2, 0, h), np.clip(cy + cut_h // 2, 0, h)
-        x1, x2 = np.clip(cx - cut_w // 2, 0, w), np.clip(cx + cut_w // 2, 0, w)
-        images = images.clone()
-        images[:, :, y1:y2, x1:x2] = images[permutation, :, y1:y2, x1:x2]
-        lam = 1 - (y2 - y1) * (x2 - x1) / (h * w)
-    else:
-        lam = np.random.beta(cfg['mixup_alpha'], cfg['mixup_alpha'])
-        images = lam * images + (1 - lam) * images[permutation]
-    targets = lam * targets + (1 - lam) * targets[permutation]
-    return images, targets
-
-
 def autocast_context(device, enabled):
     if enabled and device.type == 'cuda':
         return torch.autocast('cuda', dtype=torch.float16)
@@ -157,21 +129,15 @@ def autocast_context(device, enabled):
 # ----------------------------------------------------------------------------
 
 @torch.inference_mode()
-def predict(model, loader, device, tta_hflip=False, return_features=False,
-            max_steps=None):
+def predict(model, loader, device, tta_hflip=False, max_steps=None):
     """Run a model over a loader yielding (images, labels, paths)."""
     model.eval()
-    logits_list, labels_list, paths, features_list = [], [], [], []
+    logits_list, labels_list, paths = [], [], []
     for step, (images, labels, batch_paths) in enumerate(loader):
         if max_steps and step >= max_steps:
             break
         images = images.to(device, non_blocking=True)
-        if return_features:
-            features = model.forward_features(images)
-            logits = model.head(features)
-            features_list.append(features.float().cpu())
-        else:
-            logits = model(images)
+        logits = model(images)
         if tta_hflip:
             flipped = torch.flip(images, dims=[3])
             logits = 0.5 * (logits.softmax(1) + model(flipped).softmax(1))
@@ -181,7 +147,7 @@ def predict(model, loader, device, tta_hflip=False, return_features=False,
         paths.extend(batch_paths)
     logits = torch.cat(logits_list)
     labels = torch.cat(labels_list)
-    out = {
+    return {
         'logits': logits.numpy(),
         'probabilities': logits.softmax(1).numpy(),
         'labels': labels.numpy(),
@@ -189,9 +155,6 @@ def predict(model, loader, device, tta_hflip=False, return_features=False,
         'paths': np.asarray(paths, dtype=str),
         'loss': float(F.cross_entropy(logits, labels).item()),
     }
-    if return_features:
-        out['features'] = torch.cat(features_list).numpy()
-    return out
 
 
 def evaluate(model, loader, device, num_classes, class_names=None, **kwargs):
@@ -206,12 +169,6 @@ def evaluate(model, loader, device, num_classes, class_names=None, **kwargs):
 # Training
 # ----------------------------------------------------------------------------
 
-def _is_better(value, best, mode, min_delta):
-    if best is None:
-        return True
-    return value < best - min_delta if mode == 'min' else value > best + min_delta
-
-
 def fit(model, train_loader, val_loader, cfg, device, out_dir, num_classes,
         train_labels, class_names=None, log=print):
     """Train ``model`` and keep the checkpoint chosen by ``cfg['selection']``.
@@ -222,8 +179,8 @@ def fit(model, train_loader, val_loader, cfg, device, out_dir, num_classes,
     out_dir = Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
     epochs = cfg['epochs']
-    max_steps = cfg.get('max_steps_per_epoch')
-    steps_per_epoch = len(train_loader) if not max_steps else min(max_steps, len(train_loader))
+    max_steps = cfg.get('max_steps_per_epoch')  # set by --smoke only
+    steps_per_epoch = min(max_steps or len(train_loader), len(train_loader))
 
     optimizer = build_optimizer(model, cfg)
     scheduler = build_scheduler(optimizer, cfg, steps_per_epoch)
@@ -234,17 +191,15 @@ def fit(model, train_loader, val_loader, cfg, device, out_dir, num_classes,
     use_amp = cfg.get('amp', True) and device.type == 'cuda'
     scaler = torch.amp.GradScaler('cuda', enabled=use_amp)
     ema = ModelEma(model, cfg['ema_decay']) if cfg.get('ema_decay') else None
-    mixing = cfg.get('mix_prob', 0) > 0
+    eval_model = ema.module if ema else model
 
     selection = cfg.get('selection', {'metric': 'loss', 'mode': 'min'})
     sel_metric, sel_mode = selection['metric'], selection.get('mode', 'min')
-    min_delta = selection.get('min_delta', 0.0)
-    patience = cfg.get('early_stopping_patience')
 
     history = {key: [] for key in ['epoch', 'lr', 'train_loss', 'train_accuracy',
                                    'val_loss', 'val_accuracy', 'val_macro_f1',
                                    'val_balanced_accuracy', 'time_s']}
-    best_value, best_info, epochs_without_improvement = None, None, 0
+    best_value, best_info = None, None
 
     for epoch in range(1, epochs + 1):
         model.train()
@@ -255,12 +210,9 @@ def fit(model, train_loader, val_loader, cfg, device, out_dir, num_classes,
                 break
             images = images.to(device, non_blocking=True)
             labels = labels.to(device, non_blocking=True)
-            targets = labels
-            if mixing:
-                images, targets = mix_batch(images, labels, num_classes, cfg)
             with autocast_context(device, use_amp):
                 logits = model(images)
-                loss = criterion(logits.float(), targets)
+                loss = criterion(logits.float(), labels)
             optimizer.zero_grad(set_to_none=True)
             scaler.scale(loss).backward()
             if cfg.get('grad_clip'):
@@ -276,42 +228,32 @@ def fit(model, train_loader, val_loader, cfg, device, out_dir, num_classes,
             correct += (logits.argmax(1) == labels).sum().item()
             seen += batch
 
-        eval_model = ema.module if ema else model
-        if epoch % cfg.get('eval_every', 1) and epoch != epochs:
-            continue
         val_metrics, _ = evaluate(eval_model, val_loader, device, num_classes,
                                   class_names, max_steps=max_steps)
         history['epoch'].append(epoch)
         history['lr'].append(optimizer.param_groups[-1]['lr'])
         history['train_loss'].append(total_loss / max(seen, 1))
         history['train_accuracy'].append(correct / max(seen, 1))
-        history['val_loss'].append(val_metrics['loss'])
-        history['val_accuracy'].append(val_metrics['accuracy'])
-        history['val_macro_f1'].append(val_metrics['macro_f1'])
-        history['val_balanced_accuracy'].append(val_metrics['balanced_accuracy'])
+        for key in ('loss', 'accuracy', 'macro_f1', 'balanced_accuracy'):
+            history[f'val_{key}'].append(val_metrics[key])
         history['time_s'].append(time.time() - start)
 
         value = val_metrics[sel_metric]
-        improved = _is_better(value, best_value, sel_mode, min_delta)
+        improved = best_value is None or (value < best_value if sel_mode == 'min'
+                                          else value > best_value)
         if improved:
             best_value = value
-            epochs_without_improvement = 0
             best_info = {'epoch': epoch, 'selection_metric': sel_metric,
                          'selection_mode': sel_mode,
                          **{f'val_{k}': val_metrics[k] for k in
                             ('loss', 'accuracy', 'macro_f1', 'balanced_accuracy')}}
             torch.save(eval_model.state_dict(), out_dir / 'best.pt')
-        else:
-            epochs_without_improvement += 1
         save_json(history, out_dir / 'history.json')
         log(f'epoch {epoch:03d}/{epochs} | lr {history["lr"][-1]:.2e} | '
             f'train loss {history["train_loss"][-1]:.4f} acc {history["train_accuracy"][-1]:.4f} | '
             f'val loss {val_metrics["loss"]:.4f} acc {val_metrics["accuracy"]:.4f} '
             f'mF1 {val_metrics["macro_f1"]:.4f}{" *" if improved else ""} '
             f'| {history["time_s"][-1]:.1f}s')
-        if patience and epochs_without_improvement >= patience:
-            log(f'early stopping after {epoch} epochs (patience {patience})')
-            break
 
     torch.save(eval_model.state_dict(), out_dir / 'last.pt')
     save_json(best_info, out_dir / 'best_info.json')

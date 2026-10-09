@@ -4,7 +4,6 @@ model:
   backbone: resnet18
   pretrained: true
   dropout: 0.0
-  drop_path: 0.0
 augment:
   policy: legacy_task2
   image_size: [256, 512]

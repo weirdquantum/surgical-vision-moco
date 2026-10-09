@@ -16,17 +16,17 @@
 │   ├── utils.py                  # YAML 配置（_base_ 继承 + --set 覆盖）、随机种子、设备、日志
 │   ├── data.py                   # 增强流水线、DataLoader、按组 k 折划分
 │   ├── networks.py               # ConvNet / 手写 ResNet-18 / torchvision 主干 + 分类头
-│   ├── engine.py                 # 训练循环：AdamW、分层学习率、warmup+cosine、EMA、AMP、MixUp…
+│   ├── engine.py                 # 训练循环：AdamW、分层学习率、warmup+cosine、EMA、AMP
 │   ├── metrics.py                # Accuracy、macro-F1、混淆矩阵、多次运行汇总
 │   └── plotting.py
 ├── instrument_classification/    # 子项目 1：data.py / train.py / ensemble.py / configs/
 ├── action_recognition/           # 子项目 2：data.py / prepare.py / temporal.py / metrics.py / train.py / configs/
 ├── contrastive_learning/         # 子项目 3：moco.py / pretrain.py / probe.py / configs/
 ├── tests/                        # pytest 单元测试（不需要数据集）
-├── scripts/run_all.sh            # 按依赖顺序运行全部实验（core / full 两档）
-├── scripts/run_final.sh          # 补充实验：消融、交叉验证、标签效率
-├── scripts/collect_results.py    # 汇总所有结果并做同种子配对比较
-├── colab/run_on_colab.ipynb      # 在 Colab GPU 上一键运行
+├── scripts/reproduce.sh          # 按依赖顺序复现 README 中的全部实验
+├── scripts/collect_results.py    # 汇总所有结果并做同种子配对 t 检验
+├── results/ALL_RESULTS.md        # 汇总结果（由上一个脚本生成）
+├── colab/run_on_colab.ipynb      # 在 Colab GPU 上运行
 └── legacy/                       # 原课程作业 notebook（已执行，含原始结果）
 ```
 
@@ -35,9 +35,8 @@
 ```bash
 pip install -r requirements.txt
 ln -s /path/to/course/data data      # 包含 Dataset/、dataset-full/、RARP_1FPS/
-pytest -q tests                      # 20 个单元测试
-python -m action_recognition.prepare --data-root data
-bash scripts/run_all.sh core         # 或分别运行各子项目的 train / pretrain
+pytest -q tests                      # 17 个单元测试
+bash scripts/reproduce.sh            # 全部实验（A100 上约 7 小时）；也可以只跑 p1 / p2 / p3
 ```
 
 所有入口都支持：`--config`、`--set key=value`（覆盖任意配置项）、`--seeds`、`--device`，以及 `--smoke`（2 个 epoch、每个 epoch 2 个 batch，用于检查流程能否跑通）。已经完成的运行会自动跳过，中断后可以续跑。设备会自动选择 CUDA、MPS 或 CPU。

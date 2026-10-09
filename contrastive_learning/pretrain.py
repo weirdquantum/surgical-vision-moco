@@ -71,7 +71,7 @@ def run_pretrain(cfg, seed, out_dir, device, log):
     if cfg.get('resume', True) and (out_dir / 'encoder_last.pt').exists():
         log(f'skip {out_dir} (encoder_last.pt exists)')
         return
-    set_seed(seed, cfg.get('deterministic', False))
+    set_seed(seed)
     pcfg = cfg['pretrain']
     paths = unlabelled_paths(cfg['data'])
     dataset = TwoViewDataset(paths, build_transform(cfg['augment'], True),

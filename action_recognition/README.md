@@ -30,9 +30,9 @@
 | 配置 | 说明 |
 |---|---|
 | `convnext_tiny_mstcn.yaml` | **主模型**：ConvNeXt-Tiny + 平滑 + 交叉拟合的 MS-TCN（一次运行同时报告 frame / smoothed / temporal 三种结果） |
-| `convnext_tiny_frame_only.yaml` | 只训练逐帧模型加平滑，成本约为主模型的 1/3 |
-| `efficientnet_v2_s_mstcn.yaml` | 换用 EfficientNetV2-S 主干 |
-| `convnext_tiny_surgery_cv.yaml` | 按手术做 4 折交叉验证（无泄漏估计） |
+| `convnext_tiny_mstcn_no_crossfit.yaml` | 消融：去掉交叉拟合，复用主模型的逐帧模型 |
+| `convnext_tiny_surgery_cv.yaml` | 按手术做 4 折交叉验证：逐帧模型 + 平滑（无泄漏估计） |
+| `convnext_tiny_mstcn_surgery_cv.yaml` | 按手术 4 折交叉验证下的 MS-TCN，复用上一项的逐帧模型 |
 | `legacy_resnet18.yaml` | 原作业 Task 2 协议的复现（多种子） |
 
 ## 运行

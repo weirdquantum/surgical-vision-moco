@@ -19,8 +19,7 @@
 ### 模型与训练
 
 - **基线 CNN**：原网络 88% 的参数（2360 万）都在 `11520→2048` 的全连接层。改成全局平均池化加 Dropout 加线性层后，参数从 2668 万降到 98 万，且不再依赖输入尺寸（`convnet_scratch.yaml`）。原结构保留为 `convnet_legacy`，仅用于复现 C0。
-- **手写 ResNet-18**：加入 zero-init residual（每个残差块最后一个 BN 的 γ 初始化为 0），使从零训练更稳定。
-- **预训练主干**：新增 ConvNeXt-Tiny、EfficientNetV2-S、ResNet-50（torchvision ImageNet 权重）。
+- **预训练主干**：新增 ConvNeXt-Tiny 和 EfficientNetV2-S（torchvision ImageNet 权重）。
 - **优化**：AdamW；主干学习率是分类头的 0.1 倍；norm 层和 bias 不做权重衰减；3 个 epoch warmup 后 cosine 退火；label smoothing 0.1；梯度裁剪；EMA；CUDA 上用混合精度；drop_last 避免出现只有 2 张图的 BN batch。
 - **推理**：水平翻转 TTA；可以对多个模型的概率取平均做集成（`ensemble.py`，成员需事先确定，不能按测试结果挑选）。
 
@@ -29,8 +28,8 @@
 | 配置 | 说明 |
 |---|---|
 | `convnext_tiny.yaml` | **主模型**：ImageNet ConvNeXt-Tiny，改进协议 |
-| `efficientnet_v2_s.yaml` / `resnet50.yaml` / `resnet18_imagenet.yaml` | 其他预训练主干，协议相同 |
-| `convnet_scratch.yaml` / `resnet18_custom_scratch.yaml` | 作业中的两个网络（改进版），从零训练 |
+| `efficientnet_v2_s.yaml` / `resnet18_imagenet.yaml` | 其他预训练主干，协议相同 |
+| `convnet_scratch.yaml` / `convnet_scratch_300ep.yaml` | 作业 CNN（全局平均池化版），从零训练 150 / 300 epoch |
 | `convnext_tiny_video_cv.yaml` | 主模型，按视频做 5 折交叉验证（无泄漏估计） |
 | `legacy_c0.yaml` … `legacy_c5.yaml` | 原作业 C0–C5 协议的忠实复现（固定种子、多种子），用作改进前后对比 |
 

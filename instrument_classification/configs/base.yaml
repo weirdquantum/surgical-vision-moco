@@ -12,13 +12,12 @@ model:
   backbone: convnext_tiny
   pretrained: true         # ImageNet-1k weights from torchvision
   dropout: 0.2
-  drop_path: 0.1           # stochastic depth (ConvNeXt / EfficientNet only)
+  drop_path: 0.1           # stochastic depth (ignored by ResNet / ConvNet)
 augment:
   policy: modern
   image_size: [224, 384]   # (h, w), close to the 16:9 source frames
   crop_scale: [0.5, 1.0]
   hflip: 0.5
-  vflip: 0.0
   rotation: 10
   color_jitter: [0.3, 0.3, 0.2, 0.03]
   color_jitter_p: 0.8
@@ -35,12 +34,9 @@ train:
   warmup_epochs: 3
   min_lr_ratio: 0.01
   label_smoothing: 0.1
-  class_weights: none
-  mix_prob: 0.0
   grad_clip: 1.0
   ema_decay: 0.99
   amp: true
-  early_stopping_patience: null
   selection: {metric: loss, mode: min}   # smoother than accuracy on 33 images
 eval:
   batch_size: 32

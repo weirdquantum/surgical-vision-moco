@@ -22,10 +22,6 @@ def load_rgb(path, size_hw=None):
         return image
 
 
-def normalize_tensor():
-    return [T.ToTensor(), T.Normalize(IMAGENET_MEAN, IMAGENET_STD)]
-
-
 def build_transform(cfg, train):
     """Build a torchvision transform from an ``augment`` config section.
 
@@ -35,12 +31,11 @@ def build_transform(cfg, train):
     height, width = cfg['image_size']
     size = (height, width)
     policy = cfg.get('policy', 'modern')
+    normalize = [T.ToTensor(), T.Normalize(IMAGENET_MEAN, IMAGENET_STD)]
     if not train:
-        return T.Compose([T.Resize(size, antialias=True), *normalize_tensor()])
+        return T.Compose([T.Resize(size, antialias=True), *normalize])
 
-    if policy == 'none':
-        ops = [T.Resize(size, antialias=True)]
-    elif policy == 'legacy_task1':
+    if policy == 'legacy_task1':
         # Original Task 1/3 fine-tuning augmentation (kept for reproduction).
         ops = [T.Resize(size, antialias=True), T.RandomHorizontalFlip(),
                T.RandomVerticalFlip(), T.RandomRotation(90)]
@@ -59,16 +54,12 @@ def build_transform(cfg, train):
             ratio=(aspect * ratio_jitter, aspect / ratio_jitter), antialias=True)]
         if cfg.get('hflip', 0.5) > 0:
             ops.append(T.RandomHorizontalFlip(cfg.get('hflip', 0.5)))
-        if cfg.get('vflip', 0.0) > 0:
-            ops.append(T.RandomVerticalFlip(cfg['vflip']))
         if cfg.get('rotation', 0):
             ops.append(T.RandomRotation(cfg['rotation']))
         jitter = cfg.get('color_jitter')
         if jitter:
             ops.append(T.RandomApply([T.ColorJitter(*jitter)],
                                      p=cfg.get('color_jitter_p', 0.8)))
-        if cfg.get('trivial_augment', False):
-            ops.append(T.TrivialAugmentWide())
         if cfg.get('grayscale_p', 0) > 0:
             ops.append(T.RandomGrayscale(cfg['grayscale_p']))
         if cfg.get('blur_p', 0) > 0:
@@ -78,7 +69,7 @@ def build_transform(cfg, train):
     else:
         raise ValueError(f'Unknown augmentation policy: {policy}')
 
-    ops += normalize_tensor()
+    ops += normalize
     if policy == 'modern' and cfg.get('random_erasing', 0) > 0:
         ops.append(T.RandomErasing(p=cfg['random_erasing'], scale=(0.02, 0.15)))
     return T.Compose(ops)

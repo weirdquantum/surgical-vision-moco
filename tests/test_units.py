@@ -8,7 +8,7 @@ from action_recognition.data import label_for_frame, load_ranges, surgery_id
 from action_recognition.metrics import edit_score, segmental_metrics, smooth_probabilities
 from action_recognition.temporal import MSTCN, temporal_loss
 from common.data import group_kfold
-from common.engine import build_scheduler, class_weights, mix_batch
+from common.engine import build_scheduler, class_weights
 from common.metrics import classification_metrics
 from common.networks import build_backbone, build_classifier
 from common.utils import deep_merge, load_config
@@ -68,7 +68,7 @@ def test_config_inheritance_and_overrides():
 # --- networks ---------------------------------------------------------------
 
 @pytest.mark.parametrize('name', ['convnet', 'resnet18_custom', 'resnet18', 'convnext_tiny',
-                                  'efficientnet_b0'])
+                                  'efficientnet_v2_s'])
 def test_backbone_shapes(name):
     backbone = build_backbone(name, pretrained=False).eval()
     with torch.no_grad():
@@ -85,7 +85,7 @@ def test_legacy_convnet_matches_assignment():
 # --- engine -----------------------------------------------------------------
 
 def test_class_weights_and_scheduler():
-    weights = class_weights([0, 0, 0, 1], 3, 'inverse')
+    weights = class_weights([0, 0, 0, 1], 3, 'sqrt_inverse')
     assert weights[1] > weights[0] and weights[2] == 1.0
     optimizer = torch.optim.SGD([torch.nn.Parameter(torch.zeros(1))], lr=1.0)
     scheduler = build_scheduler(optimizer, {'epochs': 10, 'warmup_epochs': 1,
@@ -96,12 +96,6 @@ def test_class_weights_and_scheduler():
         optimizer.step()
         scheduler.step()
     assert lrs[0] == pytest.approx(0.1) and max(lrs) == pytest.approx(1.0) and lrs[-1] < 0.01
-
-
-def test_mix_batch_targets_sum_to_one():
-    images, labels = torch.randn(4, 3, 8, 8), torch.tensor([0, 1, 2, 1])
-    _, targets = mix_batch(images, labels, 3, {'mix_prob': 1.0, 'mixup_alpha': 0.2})
-    assert torch.allclose(targets.sum(1), torch.ones(4))
 
 
 def test_macro_f1_ignores_absent_classes():
@@ -155,21 +149,3 @@ def test_moco_queue_wraps_and_key_bn_updates():
     assert not torch.allclose(model.encoder_k.backbone.features[0][1].running_mean, before)
     assert 0.0 <= float(accuracy) <= 1.0
 
-
-# --- label efficiency -------------------------------------------------------
-
-def test_subsample_stratified_keeps_every_class_and_is_seeded():
-    from instrument_classification.data import Record, subsample_stratified
-    records = [Record(f'/x/v01_{i:06d}_{c}.jpg', 'v01', i, label)
-               for label, c in enumerate(['Bi', 'Cl', 'Gr']) for i in range(20)]
-    subset = subsample_stratified(records, 0.1, seed=3)
-    assert sorted({r.label for r in subset}) == [0, 1, 2] and len(subset) == 6
-    assert subset == subsample_stratified(records, 0.1, seed=3)
-    assert subset != subsample_stratified(records, 0.1, seed=4)
-
-
-def test_scale_schedule_keeps_steps_constant():
-    from instrument_classification.train import scale_schedule
-    cfg = scale_schedule({'epochs': 60, 'warmup_epochs': 3}, 0.25)
-    assert cfg['epochs'] == 240 and cfg['warmup_epochs'] == 12 and cfg['eval_every'] == 4
-    assert scale_schedule({'epochs': 60}, 1.0) == {'epochs': 60}

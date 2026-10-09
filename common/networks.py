@@ -97,7 +97,7 @@ class ResidualBlock(nn.Module):
 class ResNet18Backbone(nn.Module):
     """ResNet-18 written from scratch (He et al., 2016), without the classifier."""
 
-    def __init__(self, zero_init_residual=True):
+    def __init__(self):
         super().__init__()
         self.stem = nn.Sequential(
             nn.Conv2d(3, 64, 7, stride=2, padding=3, bias=False),
@@ -121,12 +121,6 @@ class ResNet18Backbone(nn.Module):
             elif isinstance(module, nn.BatchNorm2d):
                 nn.init.ones_(module.weight)
                 nn.init.zeros_(module.bias)
-        if zero_init_residual:
-            # Each residual branch starts as identity, which stabilises
-            # from-scratch training (Goyal et al., 2017).
-            for module in self.modules():
-                if isinstance(module, ResidualBlock):
-                    nn.init.zeros_(module.bn2.weight)
 
     def forward(self, x):
         return torch.flatten(self.pool(self.stages(self.stem(x))), 1)
@@ -138,10 +132,7 @@ class ResNet18Backbone(nn.Module):
 
 TORCHVISION_BACKBONES = {
     'resnet18': (models.resnet18, models.ResNet18_Weights.IMAGENET1K_V1),
-    'resnet50': (models.resnet50, models.ResNet50_Weights.IMAGENET1K_V2),
     'convnext_tiny': (models.convnext_tiny, models.ConvNeXt_Tiny_Weights.IMAGENET1K_V1),
-    'efficientnet_b0': (models.efficientnet_b0,
-                        models.EfficientNet_B0_Weights.IMAGENET1K_V1),
     'efficientnet_v2_s': (models.efficientnet_v2_s,
                           models.EfficientNet_V2_S_Weights.IMAGENET1K_V1),
 }
@@ -164,12 +155,12 @@ def _strip_torchvision_head(name, network):
     return network
 
 
-def build_backbone(name, pretrained=False, drop_path=0.0, zero_init_residual=True):
+def build_backbone(name, pretrained=False, drop_path=0.0):
     """Return a module mapping images to pooled features; ``.out_dim`` is D."""
     if name == 'convnet':
         return ConvNetBackbone()
     if name == 'resnet18_custom':
-        return ResNet18Backbone(zero_init_residual=zero_init_residual)
+        return ResNet18Backbone()
     if name not in TORCHVISION_BACKBONES:
         raise ValueError(f'Unknown backbone {name!r}; choose from '
                          f'convnet, resnet18_custom, {", ".join(TORCHVISION_BACKBONES)}')
@@ -191,9 +182,6 @@ class Classifier(nn.Module):
         self.head = nn.Sequential(nn.Dropout(dropout),
                                   nn.Linear(backbone.out_dim, num_classes))
 
-    def forward_features(self, x):
-        return self.backbone(x)
-
     def forward(self, x):
         return self.head(self.backbone(x))
 
@@ -203,8 +191,7 @@ def build_classifier(model_cfg, num_classes):
     if name == 'convnet_legacy':
         return ConvNetLegacy(num_classes)
     backbone = build_backbone(name, pretrained=model_cfg.get('pretrained', False),
-                              drop_path=model_cfg.get('drop_path', 0.0),
-                              zero_init_residual=model_cfg.get('zero_init_residual', True))
+                              drop_path=model_cfg.get('drop_path', 0.0))
     model = Classifier(backbone, num_classes, dropout=model_cfg.get('dropout', 0.0))
     init_checkpoint = model_cfg.get('init_checkpoint')
     if init_checkpoint:
